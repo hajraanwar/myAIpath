@@ -22,8 +22,8 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
-OPENAI_API_KEY="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"
 
+OPENAI_API_KEY="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"
 SERPER_API_KEY = "8e0c1fe50a2a55129c6c85f06672560c874f32e4"
 
 # Set up API keys for OpenAI and Pinecone
@@ -45,13 +45,6 @@ async def upload_cv(
     Role: str = Form(..., description="Select role of AI Manager, AI Engineer, AI Entreprenur and AI DataScientist"),
 ):
     try:
-        # Validate file type
-        if not cv.filename.endswith(".pdf"):
-            raise HTTPException(
-                status_code=400,
-                detail="Only PDF files are supported. Please upload a valid PDF file."
-            )
-
         cv_content_raw = await cv.read()
         if cv.filename.endswith(".pdf"):
             with open("temp.pdf", "wb") as temp_pdf:
@@ -61,7 +54,7 @@ async def upload_cv(
         else:
             cv_content = cv_content_raw.decode("utf-8")
 
-        extracted_data = cv_extraction.extract_from_cv_with_llm(cv_content)
+        extracted_data = await cv_extraction.extract_from_cv_with_llm(cv_content)
 
         skill_level = extracted_data.get("Experience Level")
         user_data = {
@@ -72,13 +65,6 @@ async def upload_cv(
             "skill_level": skill_level,
             "user_id": str(uuid.uuid4())
         }
-
-        search_results = searchCourses.search_courses(
-            role=user_data.get("Role"),
-            skills=extracted_data.get("List of technical skills", []),
-            skill_gaps=extracted_data.get("Weaknesses", []),
-            skill_level=extracted_data.get("Experience Level"))
-
 
         prompt_cv = f"""
             You are an advanced AI model assisting users in building personalized career roadmaps for their selected role: {user_data.get('Role')}. The user has uploaded their CV for analysis. Use the extracted information, including their job title, technical skills, education, existing projects, and experience level, to create a detailed, tailored roadmap with actionable next steps.
@@ -100,33 +86,22 @@ async def upload_cv(
         Custom Recommendations:
         For users with relevant experience, suggest advanced tools, frameworks, and specialized areas to deepen their knowledge.
         For users without relevant experience, guide them toward foundational resources that introduce key concepts in AI and data science.
-
-Based on {user_data.get('List of technical skills')}, {user_data.get('skill_level')} and
-  ({user_data.get('Role')}); recommend roadmap using these instructions:
-  1- If selected role ({user_data.get('Role')}) is AI Manager is AI Manager then recommend roadmap based on AI strategy and governance, Team leadership and cross-functional collaboration, AI Regulatory compliance, Budgeting and resource allocation for AI initiatives,Knowledge of AI ethics and explainable AI.
-
-
- 2- if selected role ({user_data.get('Role')}) is AI Data Scientist then recommend roadmap based on Advanced data analytics and visualization,Predictive modeling and machine learning algorithms,Data engineering and ETL (Extract, Transform, Load) processes and Building AI-powered dashboards and tools for stakeholders. 
- 
- 3- if selected role ({user_data.get('Role')}) is AI Engineer, then recommend roadmap based on AI system design and model deployment, Backend engineering for scalable AI systems, Proficiency in AI frameworks like TensorFlow, PyTorch, and Hugging Face and Developing and optimizing AI pipelines.
-
+            
         Analyze Skills:
         Categorize the user's technical skills ({extracted_data.get('List of technical skills')}) into beginner, intermediate, or advanced levels by evaluating the number of skills mentioned in their CV, the extent to which these skills have been practically applied in actual projects, and whether their educational background or degrees include coursework where these skills are typically taught. Provide a clear category (Beginner, Intermediate, or Advanced) along with a brief rationale explaining the classification. Additionally, recommend a learning path tailored to their skill level, ensuring it aligns with Saudi Arabia’s job market demands and focuses on enhancing their expertise or building a strong foundation, depending on their categorization.
 
         Identify Gaps:
             Highlight any skill gaps or areas for improvement relevant to the user's selected role ({user_data.get('Role')}). Base this analysis on the assessment of their technical skills, education, and experience. Clearly categorize them as beginner, intermediate, or advanced based on the evaluation, and then provide specific skill gaps and actionable recommendations tailored to their current level. Ensure that the recommendations align with the demands of the Saudi Arabian job market and industry standards, helping the user understand what they need to improve and how to bridge those gaps effectively.
-
+            
             Highlight any skill gaps or areas for improvement relevant to the user's selected role ({user_data.get('Role')}). Be sure to take into account the specific demands of the Saudi Arabian market and industry standards.
-
-            Tailored Learning Paths
+        Tailored Learning Paths
 
             Analyze the CV critically and categorize the individual as Beginner, Intermediate, or Advanced based on their technical skills (e.g., programming, algorithms, machine learning), education, and experience. Your assessment should be very fair and objective—if someone claims to be at a higher level but their CV does not reflect it, provide constructive feedback like: "Your CV suggests you are at this level, but based on my assessment, this is where you stand." Clearly explain the rationale behind your categorization, highlighting their strengths, gaps, and potential.
-
+            
             Provide a tailored learning path for the assessed level:
-            Highlight weaknesses {extracted_data.get("Weaknesses")} and strength {extracted_data.get("Strengths")} of the CV and based on this, recommend specific and constructive improvements; and after analyzing the CV Please Suggest relevant courses from trusted platforms like Coursera, Udemy, khan academy, and Udacity. 
-            Strictly display the courses below in the following format: Title, Platform and URL Like this: Python for Data Science, AI & Development on Coursera: [Link](https://www.coursera.org/learn/python-for-applied-data-science-ai)
-
-                {search_results}
+            Highlight weaknesses {extracted_data.get("Weaknesses")} and strength {extracted_data.get("Strengths")} of the CV and based on this, recommend specific and constructive improvements; and after analyzing the CV Please Suggest relevant courses from trusted platforms like Coursera, Udemy, khan academy, and Udacity.
+            
+                {{search_results}}
 
             **Include this sdaia link for learning suggestion against each user selected role {user_data.get("Role")} https://sdaia.gov.sa/en/Sectors/academy/Pages/default.aspx  **
 
@@ -135,7 +110,7 @@ Based on {user_data.get('List of technical skills')}, {user_data.get('skill_leve
             if user's existing skills ({extracted_data.get('List of technical skills')}) is Beginner level: Suggest foundational courses, such as "Introduction to Python," "Basics of Machine Learning," "Foundations of AI," and "Deep Learning for Beginners." Include hands-on project-based courses to help build practical skills gradually.        
             if user's existing skills ({extracted_data.get('List of technical skills')}) is Intermediate level: Recommend advanced courses and certifications covering topics like "Advanced Machine Learning," "Generative AI," "MLOps," "Cloud Computing with AWS," and "Deploying Machine Learning Models." Include hands-on project courses and emphasize practical applications.
             if user's existing skills ({extracted_data.get('List of technical skills')}) is Expert level: Suggest specialized hands-on courses and certifications focusing on cutting-edge topics such as "Advanced Deep Learning," "AI for Strategic Decision-Making," and "AI Applications in Industry." Recommend courses with real-world projects, high-level certifications, and resources that help them excel further in their career.
-
+    
             Additionally, recommend certifications in demand within the Saudi Arabian market, particularly those aligned with Vision 2030 initiatives and relevant regulatory certifications like SAMA and NCA. Include certifications from global leaders like AWS, Google, Microsoft, or Stanford.
             Encourage exploring AI research and development resources, such as Google Scholar, Papers with Code, Hugging Face, and leading AI platforms from companies like Google, Microsoft, and Amazon, to stay updated on industry trends and innovations. Ensure all recommendations align with the user's career goals and the Saudi Arabian market demands.
 
@@ -170,7 +145,7 @@ Based on {user_data.get('List of technical skills')}, {user_data.get('skill_leve
                 if {extracted_data.get("Experience Level")} is Intermediate: Suggest medium-complexity projects like predictive analytics, MLOps pipelines, or domain-specific applications in healthcare, logistics, or manufacturing.
                 if {extracted_data.get("Experience Level")} is Expert: Provide high-impact, cutting-edge projects such as Generative AI applications, advanced cloud AI deployments, or smart city solutions using AI and IoT, aligned with Vision 2030.
             Ensure all project suggestions are actionable, impactful, and aligned with the Saudi Arabian market's current and future demands. Each user should receive a unique and relevant set of project recommendations based on their individual skills, career goals, and Vision 2030 needs.
-
+                
             Career Growth Guidance:
                 Provide strategies for career progression in the selected role ({user_data.get('Role')}), including leadership opportunities and specialization tracks.
                 Offer advice on transitioning into more senior or strategic positions, with a focus on the unique dynamics of the Saudi market (e.g., the increasing role of AI in government, smart cities, and healthcare).
@@ -192,7 +167,7 @@ Based on {user_data.get('List of technical skills')}, {user_data.get('skill_leve
                 Current Job Title: {extracted_data.get('Current job title')}
                 Education: {extracted_data.get('Education')}
                 Experience Level: {extracted_data.get("Experience Level")}
-
+           
             Roadmap Structure:
                 Overview:
                     Provide an overview of the user's current skills and strengths based on the CV analysis.
@@ -204,35 +179,38 @@ Based on {user_data.get('List of technical skills')}, {user_data.get('skill_leve
                     Suggest projects that address skill gaps and align with the user professional goals. Focus on projects that are high-impact and locally relevant (aligned with Vision 2030 and local industries).
                 Career Growth:
                     Provide personalized advice on career progression, advanced specializations, and leadership development, especially tailored to the Saudi Arabian market and industry trends.
-
+        
                 Please dont mention **user** word in roadmap; pronounce user with name ({user_data.get("name")})
-
-                Just mention name in the start of the roadmap.then use second person pronoun (you, your, yours) later.
-
+                
                 Visit us at Leap:
                  If you want to have a discussion about your roadmap, you can visit our stall Number 381H in Hall 3 at LEAP conference. Our AI experts will meet and guide you further.
                 """
+
+
+        search_results = await searchCourses.search_courses(
+            role=user_data.get("Role"),
+            skills=extracted_data.get("List of technical skills", []),
+            skill_gaps=extracted_data.get("Weaknesses", []),
+            skill_level=extracted_data.get("Experience Level"))
+
+
         # Get the response from OpenAI
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[{"role": "system", "content": prompt_cv}],
-            temperature=0,
-            seed=42,
-            max_tokens=5000
+            temperature=0.3,
+            max_tokens=2000
         )
 
         # Extract the content and replace the placeholder
         response_text = response.choices[0].message.content
-        roadmap = response_text.replace("{search_results}", search_results)    
-
-         
-        # roadmap = roadmap +"\n To explore the recommended course, check out these links: \n"+ str(search_results)
+        roadmap = response_text.replace("{{search_results}}", search_results)    
 
         user_data["roadmap"] = response_text
         CV_collection.insert_one(user_data)
 
 
-        emailagent.email_sender(subject= "Thank You for Using myAIpath; Here is your Personalized Roadmap", body= roadmap, name= user_data.get('name').capitalize(), receiver_email_add= user_data.get('email'))
+        emailagent.email_sender(subject= "Thank You for Using myAIPath; Here is your Personalized Roadmap", body= response_text, name= user_data.get('name').capitalize(), receiver_email_add= user_data.get('email'))
         return {"message": "CV processed successfully.", "roadmap": roadmap}
 
     except Exception as e:
@@ -248,7 +226,6 @@ async def submit_questions(
     years_of_experience: str = Form(...),
     current_job_title: str = Form(...),
     technical_skill_rate: int = Form(..., description="1-Zero Technical Knowledge, 2-Beginner, 3-Intermediate, 4-Advanced, 5-Expert"),
-    prefered_field: str = Form(...),
 ):
     try: 
         if technical_skill_rate == 1:
@@ -274,14 +251,8 @@ async def submit_questions(
             "user_id": str(uuid.uuid4())
         }
 
-        search_results = searchCourses.search_courses(
-                role=user_data.get("Role"),
-                skills=[],
-                skill_gaps=[],
-                skill_level=user_data.get("skill_level")
-            )
         prompt_ques = f"""
-                You are an advanced AI model assisting users in building personalized career roadmaps for their selected role: **{user_data.get('Role')}**. The user has completed a questionnaire detailing their educational background (**{user_data.get('educational_background')}**), prefered field {user_data.get('prefered_field')},  skill level (**{user_data.get('skill_level')}**: beginner, intermediate, or expert), and years of experience (**{user_data.get('years_of_experience')}**). Based on this information, generate a roadmap that aligns with their desired role, addressing skill gaps, practical projects, and career growth strategies tailored to their expertise level and the Saudi Arabian market.
+                You are an advanced AI model assisting users in building personalized career roadmaps for their selected role: **{user_data.get('Role')}**. The user has completed a questionnaire detailing their educational background (**{user_data.get('educational_background')}**), skill level (**{user_data.get('skill_level')}**: beginner, intermediate, or expert), and years of experience (**{user_data.get('years_of_experience')}**). Based on this information, generate a roadmap that aligns with their desired role, addressing skill gaps, practical projects, and career growth strategies tailored to their expertise level and the Saudi Arabian market.
 
                 ### Steps to Follow:   
 
@@ -295,12 +266,12 @@ async def submit_questions(
 
                 3. **Learning Path Recommendations** (Tailored by Skill Level):
                     Provide a tailored learning path for the assessed level:
-
-                    Based on skill level {user_data.get("skill_level")}, Please recommend specific and constructive improvements; and Please Suggest relevant courses from trusted platforms like Coursera, Udemy, DataCamp, and Udacity. Strictly display the courses below in the following format: Title, Platform and URL Like this: Python for Data Science, AI & Development on Coursera: [Link](https://www.coursera.org/learn/python-for-applied-data-science-ai)
-
-                    {search_results}
-
-
+                
+                    Based on skill level {user_data.get("skill_level")}, Please recommend specific and constructive improvements; and Please Suggest relevant courses from trusted platforms like Coursera, Udemy, DataCamp, and Udacity.
+            
+                    {{search_results}}
+         
+                    
                     **Include this sdaia link for learning suggestion against each user selected role {user_data.get("Role")} https://sdaia.gov.sa/en/Sectors/academy/Pages/default.aspx  **
 
                     ### **Skill Levels and Recommendations**
@@ -327,7 +298,7 @@ async def submit_questions(
 
                 4. **Practical Projects**:
 
-                    Based on the user's skill level ({user_data.get("skill_level")}), selected role ({user_data.get('Role')}), and their education ({user_data.get('educational_background')}) existing portfolio, recommend personalized and practical projects striclty from this ({user_data.get("prefered_field")}) domain that will enhance their skills and align with their learning goals. Ensure the projects are distinct from their existing portfolio and tailored to their skill category (zero-knowledge, beginner, intermediate, advanced, or expert). Additionally, ensure relevance to Saudi Arabia's Vision 2030 initiatives and local industry needs.
+                    Based on the user's skill level ({user_data.get("skill_level")}), selected role ({user_data.get('Role')}), and their education ({user_data.get('educational_background')}) existing portfolio, recommend personalized and practical projects that will enhance their skills and align with their learning goals. Ensure the projects are distinct from their existing portfolio and tailored to their skill category (zero-knowledge, beginner, intermediate, advanced, or expert). Additionally, ensure relevance to Saudi Arabia's Vision 2030 initiatives and local industry needs.
 
                     For each skill category ({user_data.get("skill_level")}), provide at least five unique projects with brief explanations, structured as follows:
 
@@ -404,7 +375,7 @@ async def submit_questions(
                     - **AI Entrepreneur:** Align projects with Vision 2030 initiatives in fintech, healthcare, and smart cities.  
                     - **AI Data Scientist:** Work on predictive models and analytics for local industries, emphasizing energy, finance, and urban planning.  
 
-                    Tailor the project complexity to the user's skill level ({user_data.get("skill_level")}) and prefered ({user_data.get("prefered_field")}) domain:
+                    Tailor the project complexity to the user's skill level ({user_data.get("skill_level")}):  
                     - **Zero-Knowledge:** Recommend simple projects focusing on basic AI or data visualization.  
                     - **Beginner:** Suggest foundational projects such as basic predictive models or exploratory data analysis.  
                     - **Intermediate:** Propose medium-complexity projects, including deploying AI solutions or creating MLOps pipelines.  
@@ -567,7 +538,6 @@ async def submit_questions(
                 - Provide actionable career progression strategies, including leadership pathways and regional networking opportunities.
 
                 Please dont mention **user** word in roadmap; pronounce user with name ({user_data.get("name")})
-                Just mention name in the start of the roadmap.then use second person pronoun (you, your, yours) later
 
                 Visit us at Leap:
                 If you want to have a discussion about your roadmap, you can visit our stall Number 381H in Hall 3 at LEAP conference. Our AI experts will meet and guide you further.
@@ -576,26 +546,31 @@ async def submit_questions(
 
                 """
 
+        search_results = await searchCourses.search_courses(
+                role=user_data.get("Role"),
+                skills=[],
+                skill_gaps=[],
+                skill_level=user_data.get("skill_level")
+            )
         # Get the response from OpenAI
         response = openai.chat.completions.create(
-            model="gpt-4o",
-            seed= 42,
+            model="gpt-4",
             messages=[{"role": "system", "content": prompt_ques}],
-            temperature=0,
-            max_tokens=5000
+            temperature=0.3,
+            max_tokens=2000
         )
 
         # Extract the content and replace the placeholder
         response_text = response.choices[0].message.content
-        roadmap = response_text.replace("{search_results}", search_results)
+        roadmap = response_text.replace("{{search_results}}", search_results)
 
-        # roadmap = roadmap +"\n To explore the recommended course, check out these links: \n"+ str(search_results)
+
         user_data["roadmap"] = roadmap
 
         # Insert into the database
         question_roadmap.insert_one(user_data)
 
-        emailagent.email_sender(subject= "Thank You for Using myAIpath; Here is your Personalized Roadmap", name= user_data.get('name'), body= roadmap, receiver_email_add= user_data.get('email'))
+        emailagent.email_sender(subject= "Thank You for Using myAIPath; Here is your Personalized Roadmap", name= user_data.get('name'), body= roadmap, receiver_email_add= user_data.get('email'))
         return {"message": "Questions processed successfully.", "roadmap": roadmap}
 
     except Exception as e:
