@@ -22,15 +22,15 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
-OPENAI_API_KEY="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"
+OPENAI_API_KEY="OPENAI API KEY"
 
-SERPER_API_KEY = "8e0c1fe50a2a55129c6c85f06672560c874f32e4"
+SERPER_API_KEY = "SERPER API KEY"
 
 # Set up API keys for OpenAI and Pinecone
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
 # Set up MongoDB connection
-client = pymongo.MongoClient("mongodb+srv://test:iGB9cjqxOKy9a2hb@atomcamp-test.mofqx.mongodb.net/chatbot?retryWrites=true&w=majority&tls=true")
+client = pymongo.MongoClient("MONGODB CONNECTION STRING")
 db = client["Atomcamp"]
 question_roadmap = db['question_roadmap']
 CV_collection = db['cv_roadmap']
